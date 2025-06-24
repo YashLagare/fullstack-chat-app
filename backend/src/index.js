@@ -47,7 +47,6 @@
 //   connectDB();
 // });
 
-
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -55,6 +54,8 @@ import express from "express";
 import path from "path";
 import { connectDB } from "./lib/db.js";
 import { app, server } from "./lib/socket.js";
+import authRoutes from "./routes/auth.route.js";
+import messageRoutes from "./routes/message.route.js";
 
 dotenv.config();
 
@@ -74,28 +75,8 @@ app.use(
   })
 );
 
-// Add debug logging before importing routes
-console.log("About to import auth routes...");
-try {
-  const authRoutes = await import("./routes/auth.route.js");
-  console.log("Auth routes imported successfully");
-  app.use("/api/auth", authRoutes.default);
-  console.log("Auth routes registered successfully");
-} catch (error) {
-  console.error("Error with auth routes:", error.message);
-  process.exit(1);
-}
-
-console.log("About to import message routes...");
-try {
-  const messageRoutes = await import("./routes/message.route.js");
-  console.log("Message routes imported successfully");
-  app.use("/api/messages", messageRoutes.default);
-  console.log("Message routes registered successfully");
-} catch (error) {
-  console.error("Error with message routes:", error.message);
-  process.exit(1);
-}
+app.use("/api/auth", authRoutes);
+app.use("/api/messages", messageRoutes);
 
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "../frontend/dist")));

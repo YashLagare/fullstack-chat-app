@@ -42,11 +42,6 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-
-import listEndpoints from 'express-list-endpoints';
-console.log(listEndpoints(app));
-
-
 // Start server
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);

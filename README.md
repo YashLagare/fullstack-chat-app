@@ -1,5 +1,5 @@
 ============================================================================
-REALTIME CHAT APPLICATION - COMPREHENSIVE PROJECT DOCUMENTATION
+REALTIME CHAT APPLICATION - PROJECT DOCUMENTATION
 ============================================================================
 TABLE OF CONTENTS
 Project Overview
@@ -10,7 +10,7 @@ System Architecture
 DFD (Data Flow Diagram) Explanation
 ERD (Entity Relationship Diagram) Explanation
 Security Architecture
-JWT Auth Flow (Diagram Explanation)
+Authentication Flow (JWT + Socket.IO)
 Application Flow (Stepwise)
 Backend Internal Flow
 Frontend Internal Flow
@@ -56,7 +56,7 @@ Realtime Client	Socket.IO Client
 HTTP Client	Axios
 Icons	Lucide React
 Notifications	React Hot Toast
-Frontend Dependencies
+Frontend Dependencies (Key)
 json
 {
   "react": "^19.1.0",
@@ -79,7 +79,7 @@ Authentication	JWT (JSON Web Token)
 Password Hashing	Bcryptjs
 Image Storage	Cloudinary
 Security	Cookie Parser, Cors
-Backend Dependencies
+Backend Dependencies (Key)
 json
 {
   "express": "^4.18.2",
@@ -96,27 +96,25 @@ json
 3. FEATURES LIST (FULL)
 ============================================================================
 Authentication Features
- User Signup with name, email, password
+ Secure User Signup
  User Login with secure credentials
- User Logout
  Persistent session (Auto-login on refresh)
  Profile Picture Upload & Update
 Messaging Features
  Real-time text messaging
  Real-time image sharing
- View chat history with selected user
+ View chat history
  Sidebar with list of available users
  Real-time "Online" status indicator
 UI/UX Features
  Responsive Design (Mobile & Desktop)
  Theme Switching (Multiple themes via DaisyUI)
  Loading Skeletons for better UX
- Toast Notifications for actions (Login success, errors, etc.)
- Auto-scroll to latest message
+ Toast Notifications for actions
 ============================================================================
 4. FOLDER STRUCTURE EXPLANATION
 ============================================================================
-Backend Structure (backend/src/)
+Backend Structure (backend/src)
 backend/src/
 ├── controllers/
 │   ├── auth.controller.js    # Logic for signup, login, logout, profile update
@@ -124,7 +122,7 @@ backend/src/
 ├── lib/
 │   ├── cloudinary.js         # Cloudinary configuration
 │   ├── db.js                 # MongoDB connection logic
-│   ├── socket.js             # Socket.IO server setup & event handling
+│   ├── socket.js             # Socket.IO server setup
 │   └── utils.js              # Utility functions (e.g., JWT token generation)
 ├── middleware/
 │   └── auth.middleware.js    # Protects routes by verifying JWT
@@ -135,7 +133,7 @@ backend/src/
 │   ├── auth.route.js         # API routes for authentication
 │   └── message.route.js      # API routes for messaging
 └── index.js                  # Main server entry point
-Frontend Structure (frontend/src/)
+Frontend Structure (frontend/src)
 frontend/src/
 ├── components/
 │   ├── Navbar.jsx            # Top navigation bar
@@ -165,7 +163,7 @@ Client-Server Architecture
 │                           CLIENT (FRONTEND)                             │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │  React Application (Vite)                                       │   │
-│  │  ├── Zustand Stores (Auth, Chat, Theme)                        │   │
+│  │  ├── Zustand Stores (Auth, Chat)                               │   │
 │  │  ├── React Router (Navigation)                                 │   │
 │  │  ├── Socket.IO Client (Realtime)                               │   │
 │  │  └── Axios (REST API)                                          │   │
@@ -191,12 +189,11 @@ Client-Server Architecture
 │   (Database)    │   │   (Images)      │   │   (Peers)       │
 └─────────────────┘   └─────────────────┘   └─────────────────┘
 Request Lifecycle
-User Action: User clicks "Send".
-State Update: Frontend Optimistic update (optional) or loading state.
-API Call: Axios posts message to backend.
-Processing: Controller saves message to MongoDB.
-Realtime Event: Socket.IO emits newMessage to receiver.
-UI Update: Receiver's state updates instantly via Socket listener.
+User Action: User sends a message.
+API Call: Frontend sends POST request via Axios.
+Processing: Backend validates token, parses request, saves to DB.
+Real-time Event: Server emits newMessage via Socket.IO.
+UI Update: Receiver's client listens and updates state instantly.
 ============================================================================
 6. DFD (DATA FLOW DIAGRAM) EXPLANATION
 ============================================================================
@@ -235,23 +232,19 @@ Field	Type	Description
 _id	ObjectId	Unique identifier
 email	String	User email (Required, Unique)
 fullName	String	User display name
-password	String	Hashed password (min 6 chars)
+password	String	Hashed password
 profilePic	String	URL to Cloudinary image
-createdAt	Date	Account creation timestamp
-updatedAt	Date	Last update timestamp
+createdAt	Date	Timestamp
 2. Message Entity
 Field	Type	Description
 _id	ObjectId	Unique identifier
-senderId	ObjectId	Reference to User (Required)
-receiverId	ObjectId	Reference to User (Required)
-text	String	Message content (Optional if image exists)
-image	String	URL to Cloudinary image (Optional)
-createdAt	Date	Message timestamp
-updatedAt	Date	Last update timestamp
+senderId	ObjectId	Reference to User (Sender)
+receiverId	ObjectId	Reference to User (Receiver)
+text	String	Message content
+image	String	URL to Cloudinary image
+createdAt	Date	Timestamp
 Relationships
-User ↔ Message (One-to-Many): A User can send many Messages.
-User ↔ Message (One-to-Many): A User can receive many Messages.
-Self-Referencing: Message links two Users (senderId and receiverId).
+User ↔ Message: Many-to-Many via senderId and receiverId.
 ============================================================================
 8. SECURITY ARCHITECTURE
 ============================================================================
@@ -259,388 +252,260 @@ Authentication Mechanism
 JWT (JSON Web Token): Used for stateless authentication.
 Payload: Contains userid.
 Encryption: Signed with JWT_SECRET.
-Authorization & Protection
-HttpOnly Cookies: JWT is stored in an HTTP-only cookie (jwt) to prevent XSS attacks.
-Middleware (protectRoute):
-Intercepts requests to protected routes.
-Verifies the token from the cookie.
-Attaches req.user if valid.
-Returns 401 if missing/invalid.
+Authorization
+HttpOnly Cookies: JWT stored in jwt cookie to prevent XSS.
+Middleware (protectRoute): Verifies token on protected routes.
+CORS: Strict origin whitelist for frontend.
 Password Security
-Bcryptjs: Passwords are never stored in plain text.
-Salting: Auto-generated salt (10 rounds) used before hashing.
-CORS & Environment
-CORS Config: Whitlelists frontend origin (http://localhost:5173).
-Secure Cookies: Cookies set with secure: true in production (HTTPS) and sameSite: "strict"/"lax".
+Bcryptjs: Passwords hashed with salt (10 rounds).
 ============================================================================
-9. JWT AUTH FLOW (DIAGRAM EXPLANATION)
+9. AUTHENTICATION FLOW (JWT + SOCKET.IO)
 ============================================================================
-Step-by-Step Flow
-Login Request: User sends Email + Password to /api/auth/login.
-Validation: Server compares hashed password with DB.
-Token Creation: Server generates JWT with userid, expires in 7 days.
-Cookie Set: Server sets jwt cookie (HttpOnly) in response.
-Client State: Frontend updates authUser state.
-API Access: Subsequent requests (e.g., /api/messages/users) automatically include the cookie.
-Verification: protectRoute middleware decodes token and allows access.
-User -> Login API -> DB Validation -> JWT Generated -> Set Cookie (HttpOnly) -> Client
-                                                                 │
-                                                                 ▼
-User -> Protected API (Cookie auto-sent) -> Middleware Verify -> Controller -> Response
-Security Risks Handled
-XSS: Mitigated by HttpOnly cookies (JS cannot read token).
-CSRF: Mitigated by sameSite cookie attribute.
-Man-in-the-Middle: Mitigated by HTTPS (in production).
+1. Login Request
+User submits email/password -> Backend verifies hash -> Generates JWT.
+
+2. Token Storage
+Backend sets jwt cookie (HttpOnly, Secure, SameSite).
+
+3. Protected Request
+Frontend sends request -> Cookie auto-sent -> protectRoute verifies JWT signature.
+
+4. Socket Connection
+Frontend connects Socket.IO with userId. Server maps userId -> socketId.
+
 ============================================================================
 10. APPLICATION FLOW (STEPWISE)
 ============================================================================
-1. App Startup
-main.jsx mounts App component.
-useEffect triggers checkAuth() from useAuthStore.
-2. Authentication Check
-checkAuth calls /api/auth/check.
-If valid session: Set authUser state -> Connect Socket -> Render HomePage.
-If invalid: Set authUser: null -> Redirect to LoginPage (via Protected Route).
-3. Realtime Connection
-Once authenticated, useAuthStore connects Socket.IO with userId query param.
-Server maps userId to socketId.
-Client listens for getOnlineUsers to update sidebar status.
-4. Messaging Flow
-User selects a contact from Sidebar.
-getMessages(id) fetches chat history from backend.
-User sends a message -> POST /api/messages/send/:id.
-Backend saves to DB -> Emits newMessage via Socket.
-Receiver's client (useChatStore) listens to newMessage and appends to state.
-UI updates instantly.
+1. Startup
+Backend: Connects to DB, starts Express (5001), starts Socket.IO.
+Frontend: Loads React, runs checkAuth() API call.
+2. Dashboard
+If authenticated, redirects to Homepage.
+Socket connects automatically.
+Fetches active users via Socket event getOnlineUsers.
+3. Messaging
+User selects contact -> getMessages API fetch history.
+User sends message -> sendMessage API (POST).
+Backend saves message -> Emits newMessage via Socket.
+Receiver gets update via useChatStore.
 ============================================================================
 11. BACKEND INTERNAL FLOW
 ============================================================================
-Request Processing Pipeline
-Request (GET /messages/:id)
-   │
-   ▼
-server.js (App Entry)
-   │
-   ▼
-navigates to message.route.js
-   │
-   ▼
-Middleware: protectRoute()
-   ├─ Checks Cookie
-   ├─ Verifies JWT
-   └─ Attaches req.user
-   │
-   ▼
-Controller: getMessages(req, res)
-   ├─ Extract receiverId (params) & senderId (req.user)
-   ├─ Query DB (Message.find with $or condition)
-   └─ Return JSON
-   │
-   ▼
-Response sent to Client
+Request (POST /api/messages/send/:id)
+    ↓
+server.js (App)
+    ↓
+message.route.js
+    ↓
+protectRoute Middleware (Verifies JWT)
+    ↓
+message.controller.sendMessage
+    ↓
+    ├── Validate Body
+    ├── Upload Image (Cloudinary)
+    ├── Create Message (MongoDB)
+    └── Emit Socket Event (io.to(socketId).emit)
+    ↓
+Response (201 Created)
 ============================================================================
 12. FRONTEND INTERNAL FLOW
 ============================================================================
-Component Hierarchy & State
-App.jsx
- ├── Navbar (Access Global Store for Auth/Theme)
- └── Routes
-      ├── HomePage (Protected)
-      │    ├── Sidebar (uses useChatStore -> users)
-      │    └── ChatContainer (uses useChatStore -> messages/subscribe)
-      │         ├── ChatHeader
-      │         ├── MessageInput (uses useChatStore -> sendMessage)
-      │         └── MessageSkeleton (Loading State)
-      ├── LoginPage
-      └── SignupPage
-State Integration
-Stores: Centralized logic in src/store/.
-Components: Subscribe to stores using selectors.
-Updates: Components call store actions (signup, sendMessage), which handle API calls and state updates.
+App.jsx (Router)
+    ↓
+Route / (HomePage)
+    ↓
+ChatContainer.jsx (Components)
+    ↓
+useChatStore (Zustand)
+    ↓
+sendMessage Action (Axios)
+    ↓
+Handle Response & Update Messages Array
 ============================================================================
 13. AUTO API DOCUMENTATION
 ============================================================================
 API Endpoints Overview
-Method	Endpoint	Description	Auth Required	Middleware
-POST	/api/auth/signup	Register new user	No	-
-POST	/api/auth/login	User login	No	-
-POST	/api/auth/logout	User logout	No	-
-PUT	/api/auth/update-profile	Update profile picture	Yes	protectRoute
-GET	/api/auth/check	Verify current session	Yes	protectRoute
-GET	/api/messages/users	Get sidebar users	Yes	protectRoute
-GET	/api/messages/:id	Get chat history	Yes	protectRoute
-POST	/api/messages/send/:id	Send a message	Yes	protectRoute
-API Endpoint Details
-Authentication Endpoints
+Method	Endpoint	Description	Auth Required	Request Body	Response
+POST	/api/auth/signup	Register user	No	fullName, email, password	User Object
+POST	/api/auth/login	Login user	No	email, password	User Object
+POST	/api/auth/logout	Logout user	No	-	Success Message
+GET	/api/auth/check	Verify session	Yes	-	User Object
+GET	/api/messages/users	Get sidebar users	Yes	-	List of Users
+GET	/api/messages/:id	Get chat history	Yes	-	List of Messages
+POST	/api/messages/send/:id	Send message	Yes	text, image	Message Object
+Detailed Endpoint Reference
 POST /api/auth/signup
-Purpose: Register a new user
-HTTP Method: POST
-Route Path: /api/auth/signup
-Authentication Required: No
-Middleware Used: None
-Request Body:
-
+Purpose: Creates a new user account.
+Auth: No.
+Request:
 json
 {
   "fullName": "John Doe",
   "email": "john@example.com",
   "password": "password123"
 }
-Response (200 OK):
-
+Response (201):
 json
 {
-  "_id": "67b4...",
+  "_id": "65d...",
   "fullName": "John Doe",
-  "email": "john@example.com",
-  "profilePic": ""
+  "email": "john@example.com"
 }
-Flow: Route → Controller (validate, hash password, create user) → Model (Save) → Generate Token (Cookie) → Response
-
 POST /api/auth/login
-Purpose: Authenticate user and get session
-HTTP Method: POST
-Route Path: /api/auth/login
-Authentication Required: No
-Middleware Used: None
-Request Body:
-
+Purpose: Authenticates user and sets session cookie.
+Auth: No.
+Request:
 json
 {
   "email": "john@example.com",
   "password": "password123"
 }
-Response (200 OK):
-
+Response (200):
 json
 {
-  "_id": "67b4...",
+  "_id": "65d...",
   "fullName": "John Doe",
   "email": "john@example.com",
-  "profilePic": "https://res.cloudinary.com/..."
+  "profilePic": "..."
 }
-Flow: Route → Controller (find user, compare bcrypt password) → Generate Token (Cookie) → Response
-
-POST /api/auth/logout
-Purpose: End user session
-HTTP Method: POST
-Route Path: /api/auth/logout
-Authentication Required: No
-Middleware Used: None
-Request Body: None
-
-Response (200 OK):
-
-json
-{
-  "message": "Logged out successfully"
-}
-Flow: Route → Controller (clear 'jwt' cookie) → Response
-
-PUT /api/auth/update-profile
-Purpose: Update user profile picture
-HTTP Method: PUT
-Route Path: /api/auth/update-profile
-Authentication Required: Yes
-Middleware Used: protectRoute
-Request Body:
-
-json
-{
-  "profilePic": "data:image/jpeg;base64,/9j/4AAQSw..."
-}
-Response (200 OK):
-
-json
-{
-  "_id": "67b4...",
-  "fullName": "John Doe",
-  "email": "john@example.com",
-  "profilePic": "https://res.cloudinary.com/..."
-}
-Flow: Middleware(Verify Auth) → Controller (Upload to Cloudinary) → Model (Update User) → Response
-
-GET /api/auth/check
-Purpose: Verify if user is authenticated on page load
-HTTP Method: GET
-Route Path: /api/auth/check
-Authentication Required: Yes
-Middleware Used: protectRoute
-Response (200 OK):
-
-json
-{
-  "_id": "67b4...",
-  "fullName": "John Doe",
-  "email": "john@example.com",
-  "profilePic": "https://res.cloudinary.com/..."
-}
-Flow: Middleware (Verify Token, Attach User) → Controller (Return User)
-
-Messaging Endpoints
-GET /api/messages/users
-Purpose: Get list of users for sidebar (excluding self)
-HTTP Method: GET
-Route Path: /api/messages/users
-Authentication Required: Yes
-Middleware Used: protectRoute
-Response (200 OK):
-
-json
-[
-  {
-    "_id": "67b5...",
-    "fullName": "Jane Smith",
-    "email": "jane@example.com",
-    "profilePic": "..."
-  }
-]
-Flow: Middleware → Controller (Find users where _id != currentUserId) → Response
-
 GET /api/messages/:id
-Purpose: Get chat history with a specific user
-HTTP Method: GET
-Route Path: /api/messages/:id
-Authentication Required: Yes
-Middleware Used: protectRoute
-URL Params:
-
-id: The User ID of the person you are chatting with.
-Response (200 OK):
-
+Purpose: Retrieves chat history between current user and target user (:id).
+Auth: Yes.
+Response (200):
 json
 [
   {
-    "_id": "msg1...",
-    "senderId": "myId...",
-    "receiverId": "theirId...",
+    "_id": "msg_1...",
+    "senderId": "my_id",
+    "receiverId": "target_id",
     "text": "Hello!",
-    "image": null,
-    "createdAt": "2024-02-14T10:00:00.000Z"
+    "createdAt": "..."
   }
 ]
-Flow: Middleware → Controller (Find messages where sender=me&receiver=them OR sender=them&receiver=me) → Response
-
 POST /api/messages/send/:id
-Purpose: Send a message to a user
-HTTP Method: POST
-Route Path: /api/messages/send/:id
-Authentication Required: Yes
-Middleware Used: protectRoute
-URL Params:
-
-id: The User ID of the receiver.
-Request Body:
-
+Purpose: Sends a text or image message to target user (:id).
+Auth: Yes.
+Request:
 json
 {
   "text": "Hello there!",
   "image": "data:image/png;base64,..." // Optional
 }
-Response (201 Created):
-
+Response (201):
 json
 {
-  "_id": "msg2...",
-  "senderId": "myId...",
-  "receiverId": "theirId...",
+  "_id": "msg_2...",
+  "senderId": "my_id",
+  "receiverId": "target_id",
   "text": "Hello there!",
   "image": "https://res.cloudinary.com/...",
   "createdAt": "..."
 }
-Flow: Middleware → Controller (Upload image if any, Create Message, Save to DB) → Socket.IO (Emit 'newMessage') → Response
-
 ============================================================================
 14. DEPENDENCIES INSTALLATION
 ============================================================================
 Backend Setup
-Navigate to backend: cd backend
-Install dependencies: npm install
-Setup .env file (see Section 15).
-Start dev server: npm run dev
-Key Packages: express, mongoose, socket.io, jsonwebtoken, cloudinary.
+Navigate to Backend
 
+bash
+cd backend
+Install Packages
+
+bash
+npm install
+Important Dependencies:
+
+express: Web Server
+mongoose: Database
+jsonwebtoken: Authentication
+socket.io: Real-time
+cloudinary: Image Storage
+Start Server
+
+bash
+npm run dev    # Development
 Frontend Setup
-Navigate to frontend: cd frontend
-Install dependencies: npm install
-Start dev server: npm run dev
-Key Packages: react, vite, zustand, socket.io-client, tailwindcss.
+Navigate to Frontend
 
+bash
+cd frontend
+Install Packages
+
+bash
+npm install
+Important Dependencies:
+
+react, react-dom
+socket.io-client: Real-time Client
+zustand: State Management
+axios: API Client
+Start Dev Server
+
+bash
+npm run dev
 ============================================================================
 15. ENVIRONMENT VARIABLES
 ============================================================================
-Create a .env file in the backend/ directory with the following:
-
-Variable	Description	Example
-MONGODB_URI	Connection string for MongoDB	mongodb+srv://...
-PORT	API Server Port	5001
-JWT_SECRET	Secret key for signing tokens	mysecretkey123
-CLOUDINARY_CLOUD_NAME	Cloudinary Cloud Name	dx...
-CLOUDINARY_API_KEY	Cloudinary API Key	123...
-CLOUDINARY_API_SECRET	Cloudinary Secret	abc...
-NODE_ENV	Environment (development/production)	development
+Backend (backend/.env)
+Variable	Description	Required	Example
+PORT	Server Port	No	5001
+MONGODB_URI	MongoDB Connection String	Yes	mongodb+srv://...
+JWT_SECRET	Secret for Token Signing	Yes	secret123
+CLOUDINARY_CLOUD_NAME	Cloudinary Config	Yes	dx...
+CLOUDINARY_API_KEY	Cloudinary Config	Yes	123...
+CLOUDINARY_API_SECRET	Cloudinary Config	Yes	abc...
+NODE_ENV	Environment Mode	No	development
 ============================================================================
 16. HOW TO RUN PROJECT
 ============================================================================
-Step 1: Database Setup
-Ensure you have a MongoDB Atlas account or local MongoDB instance running.
+Step 1: Configure Environment
+Ensure backend/.env is created with the keys listed above.
 
-Step 2: Backend
+Step 2: Start Backend
 bash
 cd backend
-npm install
 npm run dev
-# Server should run on port 5001 and connect to MongoDB
-Step 3: Frontend
+# Server should run on http://localhost:5001
+Step 3: Start Frontend
 bash
 cd frontend
-npm install
 npm run dev
-# App should run on http://localhost:5173
-Step 4: Access
-Open http://localhost:5173 in your browser. Create an account and open another window (incognito) to test messaging between two accounts.
+# Vite server runs on http://localhost:5173
+Step 4: Verify
+Open http://localhost:5173, create an account, and start chatting.
 
 ============================================================================
 17. RUNTIME FLOW (AFTER STARTUP)
 ============================================================================
-Servers Start: Backend listens on 5001, Frontend on 5173.
-DB Connection: Mongoose connects to MongoDB URI.
-Socket Init: Socket.IO server waits for connections.
-Browser Load: Frontend loads, checking /api/auth/check.
-If logged in -> Socket connects -> Dashboard displays.
-If guest -> Redirects to Login.
-User Interaction: Messages sent triggers API + Socket events parallely.
+Idle State: Server listens on Port 5001.
+User Connects: Frontend checks /api/auth/check for active session.
+Socket Init: Once authenticated, client connects to Socket.IO.
+Active Users: Sidebar updates via getOnlineUsers event.
+Messaging: Messages flow via HTTP (save) + Socket (deliver).
 ============================================================================
 18. COMMON ERRORS & FIXES
 ============================================================================
-1. MongoDB Connection Error
-Cause: Invalid URI or IP whitelist.
-Fix: Check .env URI and whitelist IP in MongoDB Atlas.
-2. CORS Error (Access blocked)
-Cause: Frontend origin not allowed in Backend.
-Fix: Update origin in index.js (cors config) and socket.js.
-3. Images Not Uploading
-Cause: Cloudinary credentials missing/wrong or image too large.
-Fix: Verify keys in .env and payload size limits in index.js.
-4. Socket Not Connecting
-Cause: Port mismatch or mismatched protocol (http/https).
-Fix: Ensure client connects to correct Backend URL (http://localhost:5001).
+Error: "MongoDB Connection Error"
+Fix: Check MONGODB_URI in .env and IP Whitelist in MongoDB Atlas.
+
+Error: "CORS Policy Blocked"
+Fix: Ensure origin in index.js matches your frontend URL (http://localhost:5173).
+
+Error: "Socket Not Connected"
+Fix: Ensure socket.io-client points to backend URL (http://localhost:5001).
+
 ============================================================================
 19. DEVELOPER NOTES
 ============================================================================
 Scalability Improvements
-Redis Adapter: Use Redis for Socket.IO scaling across multiple server instances.
-Pagination: Implement pagination for message history to reduce load.
-Message Queue: Use RabbitMQ/Redis for processing heavy tasks (like image processing).
-Performance Suggestions
-Image Optimization: Resize images on client-side before upload.
-Lazy Loading: Messages are currently fetching all history; implement infinite scroll.
-Virtualization: Use react-window for long chat lists.
+Redis Adapter: Use Redis for Socket.IO multi-server scaling.
+Pagination: Implement cursor-based pagination for messages.
 Security Improvements
-Rate Limiting: Add express-rate-limit for API routes.
-Input Sanitization: Use express-validator to sanitize inputs.
-Token Rotation: Implement Refresh Tokens for better security hygiene.
+Rate Limiting: Add limiters to prevent API abuse.
+Input Validation: Use zod or express-validator.
+Performance
+Image Optimization: Resize images client-side before upload to save bandwidth.
+Virtualization: Use react-window for large message lists.
 ============================================================================
 END OF DOCUMENTATION
 ============================================================================
-by Yash Lagare 2026-02-17

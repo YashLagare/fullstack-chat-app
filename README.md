@@ -119,7 +119,7 @@ UI/UX Features
 Backend Structure (backend/src/)
 backend/src/
 ├── controllers/
-│   ├── auth.controller.js    # Logic for cleanup, login, logout, profile update
+│   ├── auth.controller.js    # Logic for signup, login, logout, profile update
 │   └── message.controller.js # Logic for fetching users, messages, sending messages
 ├── lib/
 │   ├── cloudinary.js         # Cloudinary configuration
@@ -257,7 +257,7 @@ Self-Referencing: Message links two Users (senderId and receiverId).
 ============================================================================
 Authentication Mechanism
 JWT (JSON Web Token): Used for stateless authentication.
-Payload: Contains userId.
+Payload: Contains userid.
 Encryption: Signed with JWT_SECRET.
 Authorization & Protection
 HttpOnly Cookies: JWT is stored in an HTTP-only cookie (jwt) to prevent XSS attacks.
@@ -278,7 +278,7 @@ Secure Cookies: Cookies set with secure: true in production (HTTPS) and sameSite
 Step-by-Step Flow
 Login Request: User sends Email + Password to /api/auth/login.
 Validation: Server compares hashed password with DB.
-Token Creation: Server generates JWT with userId, expires in 7 days.
+Token Creation: Server generates JWT with userid, expires in 7 days.
 Cookie Set: Server sets jwt cookie (HttpOnly) in response.
 Client State: Frontend updates authUser state.
 API Access: Subsequent requests (e.g., /api/messages/users) automatically include the cookie.
@@ -346,8 +346,8 @@ App.jsx
  ├── Navbar (Access Global Store for Auth/Theme)
  └── Routes
       ├── HomePage (Protected)
-      │    ├── Sidebar (uses useChatStore -> getUsers)
-      │    └── ChatContainer (uses useChatStore -> getMessages/subscribe)
+      │    ├── Sidebar (uses useChatStore -> users)
+      │    └── ChatContainer (uses useChatStore -> messages/subscribe)
       │         ├── ChatHeader
       │         ├── MessageInput (uses useChatStore -> sendMessage)
       │         └── MessageSkeleton (Loading State)
@@ -360,28 +360,196 @@ Updates: Components call store actions (signup, sendMessage), which handle API c
 ============================================================================
 13. AUTO API DOCUMENTATION
 ============================================================================
+API Endpoints Overview
+Method	Endpoint	Description	Auth Required	Middleware
+POST	/api/auth/signup	Register new user	No	-
+POST	/api/auth/login	User login	No	-
+POST	/api/auth/logout	User logout	No	-
+PUT	/api/auth/update-profile	Update profile picture	Yes	protectRoute
+GET	/api/auth/check	Verify current session	Yes	protectRoute
+GET	/api/messages/users	Get sidebar users	Yes	protectRoute
+GET	/api/messages/:id	Get chat history	Yes	protectRoute
+POST	/api/messages/send/:id	Send a message	Yes	protectRoute
+API Endpoint Details
 Authentication Endpoints
-Method	Endpoint	Description	Auth Required	Request Body	Response
-POST	/api/auth/signup	Register new user	No	fullName, email, password	User object + Cookie
-POST	/api/auth/login	User login	No	email, password	User object + Cookie
-POST	/api/auth/logout	User logout	No	None	Success message
-PUT	/api/auth/update-profile	Update profile pic	Yes	profilePic (Base64/URL)	Updated User object
-GET	/api/auth/check	Verify current session	Yes	None	User object
-Message Endpoints
-Method	Endpoint	Description	Auth Required	Request Body	Response
-GET	/api/messages/users	Get sidebar users	Yes	None	Array of Users (excluding self)
-GET	/api/messages/:id	Get chat history	Yes	URL Param: id (User ID)	Array of Messages
-POST	/api/messages/send/:id	Send a message	Yes	Param: id, Body: text, image	New Message object
-Endpoint Details
-POST /api/messages/send/:id
+POST /api/auth/signup
+Purpose: Register a new user
+HTTP Method: POST
+Route Path: /api/auth/signup
+Authentication Required: No
+Middleware Used: None
+Request Body:
 
-Purpose: Send text or image to a user.
-Auth: Protected (JWT).
-Flow: Route -> protectRoute -> sendMessage Controller -> Upload Image (if any) -> Save DB -> Emit Socket Event -> Response.
+json
+{
+  "fullName": "John Doe",
+  "email": "john@example.com",
+  "password": "password123"
+}
+Response (200 OK):
+
+json
+{
+  "_id": "67b4...",
+  "fullName": "John Doe",
+  "email": "john@example.com",
+  "profilePic": ""
+}
+Flow: Route → Controller (validate, hash password, create user) → Model (Save) → Generate Token (Cookie) → Response
+
+POST /api/auth/login
+Purpose: Authenticate user and get session
+HTTP Method: POST
+Route Path: /api/auth/login
+Authentication Required: No
+Middleware Used: None
+Request Body:
+
+json
+{
+  "email": "john@example.com",
+  "password": "password123"
+}
+Response (200 OK):
+
+json
+{
+  "_id": "67b4...",
+  "fullName": "John Doe",
+  "email": "john@example.com",
+  "profilePic": "https://res.cloudinary.com/..."
+}
+Flow: Route → Controller (find user, compare bcrypt password) → Generate Token (Cookie) → Response
+
+POST /api/auth/logout
+Purpose: End user session
+HTTP Method: POST
+Route Path: /api/auth/logout
+Authentication Required: No
+Middleware Used: None
+Request Body: None
+
+Response (200 OK):
+
+json
+{
+  "message": "Logged out successfully"
+}
+Flow: Route → Controller (clear 'jwt' cookie) → Response
+
+PUT /api/auth/update-profile
+Purpose: Update user profile picture
+HTTP Method: PUT
+Route Path: /api/auth/update-profile
+Authentication Required: Yes
+Middleware Used: protectRoute
+Request Body:
+
+json
+{
+  "profilePic": "data:image/jpeg;base64,/9j/4AAQSw..."
+}
+Response (200 OK):
+
+json
+{
+  "_id": "67b4...",
+  "fullName": "John Doe",
+  "email": "john@example.com",
+  "profilePic": "https://res.cloudinary.com/..."
+}
+Flow: Middleware(Verify Auth) → Controller (Upload to Cloudinary) → Model (Update User) → Response
+
+GET /api/auth/check
+Purpose: Verify if user is authenticated on page load
+HTTP Method: GET
+Route Path: /api/auth/check
+Authentication Required: Yes
+Middleware Used: protectRoute
+Response (200 OK):
+
+json
+{
+  "_id": "67b4...",
+  "fullName": "John Doe",
+  "email": "john@example.com",
+  "profilePic": "https://res.cloudinary.com/..."
+}
+Flow: Middleware (Verify Token, Attach User) → Controller (Return User)
+
+Messaging Endpoints
+GET /api/messages/users
+Purpose: Get list of users for sidebar (excluding self)
+HTTP Method: GET
+Route Path: /api/messages/users
+Authentication Required: Yes
+Middleware Used: protectRoute
+Response (200 OK):
+
+json
+[
+  {
+    "_id": "67b5...",
+    "fullName": "Jane Smith",
+    "email": "jane@example.com",
+    "profilePic": "..."
+  }
+]
+Flow: Middleware → Controller (Find users where _id != currentUserId) → Response
+
 GET /api/messages/:id
+Purpose: Get chat history with a specific user
+HTTP Method: GET
+Route Path: /api/messages/:id
+Authentication Required: Yes
+Middleware Used: protectRoute
+URL Params:
 
-Purpose: Retrieve conversation between current user and target user (id).
-Logic: Finds messages where (sender=Me AND receiver=You) OR (sender=You AND receiver=Me).
+id: The User ID of the person you are chatting with.
+Response (200 OK):
+
+json
+[
+  {
+    "_id": "msg1...",
+    "senderId": "myId...",
+    "receiverId": "theirId...",
+    "text": "Hello!",
+    "image": null,
+    "createdAt": "2024-02-14T10:00:00.000Z"
+  }
+]
+Flow: Middleware → Controller (Find messages where sender=me&receiver=them OR sender=them&receiver=me) → Response
+
+POST /api/messages/send/:id
+Purpose: Send a message to a user
+HTTP Method: POST
+Route Path: /api/messages/send/:id
+Authentication Required: Yes
+Middleware Used: protectRoute
+URL Params:
+
+id: The User ID of the receiver.
+Request Body:
+
+json
+{
+  "text": "Hello there!",
+  "image": "data:image/png;base64,..." // Optional
+}
+Response (201 Created):
+
+json
+{
+  "_id": "msg2...",
+  "senderId": "myId...",
+  "receiverId": "theirId...",
+  "text": "Hello there!",
+  "image": "https://res.cloudinary.com/...",
+  "createdAt": "..."
+}
+Flow: Middleware → Controller (Upload image if any, Create Message, Save to DB) → Socket.IO (Emit 'newMessage') → Response
+
 ============================================================================
 14. DEPENDENCIES INSTALLATION
 ============================================================================
@@ -415,7 +583,7 @@ NODE_ENV	Environment (development/production)	development
 16. HOW TO RUN PROJECT
 ============================================================================
 Step 1: Database Setup
-ensure you have a MongoDB Atlas account or local MongoDB instance running.
+Ensure you have a MongoDB Atlas account or local MongoDB instance running.
 
 Step 2: Backend
 bash
@@ -450,7 +618,7 @@ Cause: Invalid URI or IP whitelist.
 Fix: Check .env URI and whitelist IP in MongoDB Atlas.
 2. CORS Error (Access blocked)
 Cause: Frontend origin not allowed in Backend.
-Fix: Update origin in server.js (cors config) and socket.js.
+Fix: Update origin in index.js (cors config) and socket.js.
 3. Images Not Uploading
 Cause: Cloudinary credentials missing/wrong or image too large.
 Fix: Verify keys in .env and payload size limits in index.js.
@@ -475,3 +643,4 @@ Token Rotation: Implement Refresh Tokens for better security hygiene.
 ============================================================================
 END OF DOCUMENTATION
 ============================================================================
+by Yash Lagare 2026-02-17

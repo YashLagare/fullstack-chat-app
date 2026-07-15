@@ -156,10 +156,6 @@ No other auth providers (OAuth/Firebase/etc.) exist in the codebase.
 | Online Presence (`getOnlineUsers`) | Maintain `userSocketMap` and broadcast online user IDs | Show Online/Offline in UI | `backend/src/lib/socket.js`, `useAuthStore.connectSocket`, `Sidebar`, `ChatHeader` |
 | Theme Selection | Store DaisyUI theme name in localStorage | UI personalization | `frontend/src/pages/SettingPage.jsx`, `useThemesStore` |
 
-Feature Screenshot Placeholder:
-
-[INSERT_FEATURE_SCREENSHOT_HERE]
-
 ---
 
 # 5. FOLDER STRUCTURE
